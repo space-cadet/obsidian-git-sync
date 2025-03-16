@@ -14840,6 +14840,20 @@ var web_default = index;
 
 // src/gitManager.ts
 var import_obsidian = require("obsidian");
+var PROXY_URL = "http://localhost:3001/proxy?url=";
+var customHttpClient = {
+  request: async (config) => {
+    const proxiedUrl = PROXY_URL + encodeURIComponent(config.url);
+    return request({
+      ...config,
+      url: proxiedUrl,
+      headers: {
+        ...config.headers,
+        "X-Requested-With": "obsidian-git-sync"
+      }
+    });
+  }
+};
 var GitManager = class {
   constructor(fs, dir, credentials, statusBarItem) {
     this.statusBarItem = null;
@@ -14864,7 +14878,7 @@ var GitManager = class {
         this.updateStatus("Cloning repository...");
         await clone({
           fs: this.fs,
-          http: web_exports,
+          http: customHttpClient,
           dir: this.dir,
           url: repoUrl,
           ref: branchName,

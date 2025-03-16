@@ -6,8 +6,7 @@
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
-    "version": "node version-bump.mjs && git add manifest.json versions.json",
-    "install": "pnpm install"
+    "version": "node version-bump.mjs && git add manifest.json versions.json"
   },
   "keywords": [
     "obsidian",
@@ -30,6 +29,8 @@
   },
   "dependencies": {
     "isomorphic-git": "^1.21.0",
-    "@isomorphic-git/lightning-fs": "^4.6.0"
+    "@isomorphic-git/lightning-fs": "^4.6.0",
+    "node-fetch": "^2.6.7",
+    "@types/node-fetch": "^2.6.2"
   }
 }

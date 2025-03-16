@@ -1,5 +1,30 @@
 import * as git from 'isomorphic-git';
 import * as http from 'isomorphic-git/http/web';
+
+// Create custom http client with CORS headers
+const PROXY_URL = 'http://localhost:3001/proxy?url=';
+const customHttpClient = {
+  request: async (config: any) => {
+    const proxiedUrl = PROXY_URL + encodeURIComponent(config.url);
+    const headers = {
+      ...config.headers,
+      'X-Requested-With': 'obsidian-git-sync'
+    };
+
+    if (this.credentials?.username) {
+      headers['X-Git-Username'] = this.credentials.username;
+    }
+    if (this.credentials?.password) {
+      headers['X-Git-Password'] = this.credentials.password;
+    }
+
+    return http.request({
+      ...config,
+      url: proxiedUrl,
+      headers
+    });
+  }
+};
 import * as fs from '@isomorphic-git/lightning-fs';
 import { Notice } from 'obsidian';
 
@@ -46,7 +71,7 @@ export class GitManager {
                 // Clone the repository
                 await git.clone({
                     fs: this.fs,
-                    http,
+                    http: customHttpClient,
                     dir: this.dir,
                     url: repoUrl,
                     ref: branchName,

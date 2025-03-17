@@ -61,6 +61,14 @@ export class GitManager {
         this.statusBarItem = statusBarItem || null;
     }
 
+    /**
+     * Update the Git credentials
+     */
+    updateCredentials(credentials: GitCredentials): void {
+        this.credentials = credentials;
+        log.debug('GitManager', 'Credentials updated');
+    }
+
     private updateStatus(message: string) {
         if (this.statusBarItem) {
             this.statusBarItem.setText(`Git: ${message}`);
@@ -104,8 +112,24 @@ export class GitManager {
                 return true;
             }
             
-            this.updateStatus('Repository already exists');
-            log.info('GitManager', `Repository already exists at ${this.dir}`);
+            // If repository exists locally, validate the remote URL
+            // by attempting to list the remote refs
+            this.updateStatus('Validating repository...');
+            log.debug('GitManager', `Validating remote repository URL: ${repoUrl}`);
+            
+            await git.listServerRefs({
+                fs: this.fs,
+                http: new GitHttpClient(this.credentials),
+                url: repoUrl,
+                prefix: `refs/heads/${branchName}`,
+                onAuth: () => ({
+                    username: this.credentials.username,
+                    password: this.credentials.password
+                })
+            });
+            
+            this.updateStatus('Repository validated');
+            log.info('GitManager', `Repository exists and remote URL is valid`);
             return true;
         } catch (error) {
             log.error('GitManager', 'Failed to initialize repository', error);
@@ -115,13 +139,16 @@ export class GitManager {
     }
 
     /**
-     * Check if the current directory is a git repository
+     * Check if the current directory is a local git repository
+     * Note: This only checks for local repository structure, not remote connectivity
      */
     async isRepository(): Promise<boolean> {
         try {
             await git.findRoot({ fs: this.fs, filepath: this.dir });
+            log.debug('GitManager', `Local Git repository found at ${this.dir}`);
             return true;
         } catch (error) {
+            log.debug('GitManager', `No local Git repository found at ${this.dir}`);
             return false;
         }
     }
@@ -135,10 +162,11 @@ export class GitManager {
             
             await git.pull({
                 fs: this.fs,
-                http,
+                http: new GitHttpClient(this.credentials),
                 dir: this.dir,
                 ref: branchName,
                 singleBranch: true,
+                fastForwardOnly: true,
                 onAuth: () => ({
                     username: this.credentials.username,
                     password: this.credentials.password

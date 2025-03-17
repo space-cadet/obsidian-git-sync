@@ -7453,7 +7453,7 @@ __export(main_exports, {
   default: () => GitSyncPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian2 = require("obsidian");
+var import_obsidian3 = require("obsidian");
 var import_lightning_fs = __toESM(require_src());
 
 // node_modules/.pnpm/isomorphic-git@1.29.0/node_modules/isomorphic-git/index.js
@@ -14838,25 +14838,106 @@ async function request({
 var index = { request };
 var web_default = index;
 
-// src/gitManager.ts
+// src/logger.ts
 var import_obsidian = require("obsidian");
+var Logger = class _Logger {
+  constructor() {
+    this.logLevel = 1 /* INFO */;
+    this.showNotices = true;
+  }
+  /**
+   * Get the singleton instance of the logger
+   */
+  static getInstance() {
+    if (!_Logger.instance) {
+      _Logger.instance = new _Logger();
+    }
+    return _Logger.instance;
+  }
+  /**
+   * Set the minimum log level to display
+   */
+  setLogLevel(level) {
+    this.logLevel = level;
+  }
+  /**
+   * Set whether to show notices for warnings and errors
+   */
+  setShowNotices(show) {
+    this.showNotices = show;
+  }
+  /**
+   * Log a debug message
+   */
+  debug(context, message, data) {
+    if (this.logLevel <= 0 /* DEBUG */) {
+      console.debug(`[Git Sync][${context}] ${message}`, data || "");
+    }
+  }
+  /**
+   * Log an info message
+   */
+  info(context, message, data) {
+    if (this.logLevel <= 1 /* INFO */) {
+      console.info(`[Git Sync][${context}] ${message}`, data || "");
+    }
+  }
+  /**
+   * Log a warning message
+   */
+  warn(context, message, data) {
+    if (this.logLevel <= 2 /* WARN */) {
+      console.warn(`[Git Sync][${context}] ${message}`, data || "");
+      if (this.showNotices) {
+        new import_obsidian.Notice(`[Warning] ${message}`);
+      }
+    }
+  }
+  /**
+   * Log an error message
+   */
+  error(context, message, error) {
+    if (this.logLevel <= 3 /* ERROR */) {
+      console.error(`[Git Sync][${context}] ${message}`, error || "");
+      if (error == null ? void 0 : error.stack) {
+        console.error(`[Git Sync][${context}] Stack trace:`, error.stack);
+      }
+      if (this.showNotices) {
+        new import_obsidian.Notice(`[Error] ${message}${error ? `: ${error.message}` : ""}`);
+      }
+    }
+  }
+};
+var log2 = Logger.getInstance();
+
+// src/gitManager.ts
+var import_obsidian2 = require("obsidian");
 var _GitHttpClient = class _GitHttpClient {
   constructor(credentials) {
     this.credentials = credentials;
   }
   async request(config) {
     const proxiedUrl = _GitHttpClient.PROXY_URL + encodeURIComponent(config.url);
+    log2.debug("GitHttpClient", `Proxying request to: ${config.url}`);
     const headers = {
       ...config.headers,
       "X-Requested-With": "obsidian-git-sync",
       "X-Git-Username": this.credentials.username,
       "X-Git-Password": this.credentials.password
     };
-    return request({
-      ...config,
-      url: proxiedUrl,
-      headers
-    });
+    try {
+      log2.debug("GitHttpClient", `Sending ${config.method || "GET"} request`);
+      const response = await request({
+        ...config,
+        url: proxiedUrl,
+        headers
+      });
+      log2.debug("GitHttpClient", `Response status: ${response.statusCode}`);
+      return response;
+    } catch (error) {
+      log2.error("GitHttpClient", `Request failed: ${error.message}`, error);
+      throw error;
+    }
   }
 };
 _GitHttpClient.PROXY_URL = "http://localhost:3001/proxy?url=";
@@ -14869,20 +14950,29 @@ var GitManager = class {
     this.credentials = credentials;
     this.statusBarItem = statusBarItem || null;
   }
+  /**
+   * Update the Git credentials
+   */
+  updateCredentials(credentials) {
+    this.credentials = credentials;
+    log2.debug("GitManager", "Credentials updated");
+  }
   updateStatus(message) {
     if (this.statusBarItem) {
       this.statusBarItem.setText(`Git: ${message}`);
     }
-    console.log(`Git status: ${message}`);
+    log2.info("GitManager", message);
   }
   /**
    * Initialize a new repository or check if one exists
    */
   async initializeRepo(repoUrl, branchName) {
     try {
+      log2.debug("GitManager", `Initializing repository: ${repoUrl}, branch: ${branchName}`);
       const isRepo = await this.isRepository();
       if (!isRepo) {
         this.updateStatus("Cloning repository...");
+        log2.info("GitManager", `Cloning repository from ${repoUrl} (branch: ${branchName})`);
         await clone({
           fs: this.fs,
           http: new GitHttpClient(this.credentials),
@@ -14891,18 +14981,23 @@ var GitManager = class {
           ref: branchName,
           singleBranch: true,
           depth: 1,
-          onAuth: () => ({
-            username: this.credentials.username,
-            password: this.credentials.password
-          })
+          onAuth: () => {
+            log2.debug("GitManager", "Authentication requested by remote");
+            return {
+              username: this.credentials.username,
+              password: this.credentials.password
+            };
+          }
         });
         this.updateStatus("Repository cloned");
+        log2.info("GitManager", `Repository successfully cloned to ${this.dir}`);
         return true;
       }
       this.updateStatus("Repository already exists");
+      log2.info("GitManager", `Repository already exists at ${this.dir}`);
       return true;
     } catch (error) {
-      console.error("Failed to initialize repository:", error);
+      log2.error("GitManager", "Failed to initialize repository", error);
       this.updateStatus("Failed to initialize");
       throw error;
     }
@@ -14984,6 +15079,7 @@ var GitManager = class {
   async commit(message) {
     try {
       this.updateStatus("Committing changes...");
+      log2.debug("GitManager", `Committing changes with message: ${message}`);
       const sha = await commit({
         fs: this.fs,
         dir: this.dir,
@@ -14994,9 +15090,10 @@ var GitManager = class {
         }
       });
       this.updateStatus("Changes committed");
+      log2.info("GitManager", `Changes committed successfully with SHA: ${sha.slice(0, 7)}`);
       return sha;
     } catch (error) {
-      console.error("Failed to commit changes:", error);
+      log2.error("GitManager", "Failed to commit changes", error);
       this.updateStatus("Commit failed");
       throw error;
     }
@@ -15007,20 +15104,25 @@ var GitManager = class {
   async push(branchName) {
     try {
       this.updateStatus("Pushing changes...");
+      log2.debug("GitManager", `Pushing changes to remote branch: ${branchName}`);
       await push({
         fs: this.fs,
-        http: web_exports,
+        http: new GitHttpClient(this.credentials),
         dir: this.dir,
         remote: "origin",
         ref: branchName,
-        onAuth: () => ({
-          username: this.credentials.username,
-          password: this.credentials.password
-        })
+        onAuth: () => {
+          log2.debug("GitManager", "Authentication requested for push operation");
+          return {
+            username: this.credentials.username,
+            password: this.credentials.password
+          };
+        }
       });
       this.updateStatus("Push completed");
+      log2.info("GitManager", `Successfully pushed changes to remote branch: ${branchName}`);
     } catch (error) {
-      console.error("Failed to push changes:", error);
+      log2.error("GitManager", `Failed to push changes to branch ${branchName}`, error);
       this.updateStatus("Push failed");
       throw error;
     }
@@ -15030,14 +15132,17 @@ var GitManager = class {
    */
   async getStatus() {
     try {
+      log2.debug("GitManager", "Getting repository status");
       const currentBranch2 = await currentBranch({
         fs: this.fs,
         dir: this.dir,
         fullname: false
       });
       if (!currentBranch2) {
+        log2.warn("GitManager", "Not currently on any branch");
         throw new Error("Not on a branch");
       }
+      log2.debug("GitManager", `Current branch: ${currentBranch2}`);
       const [ahead, behind] = await Promise.all([
         log({
           fs: this.fs,
@@ -15050,13 +15155,14 @@ var GitManager = class {
           ref: `origin/${currentBranch2}..${currentBranch2}`
         }).then((commits) => commits.length).catch(() => 0)
       ]);
+      log2.info("GitManager", `Repository status: branch=${currentBranch2}, ahead=${ahead}, behind=${behind}`);
       return {
         branch: currentBranch2,
         ahead,
         behind
       };
     } catch (error) {
-      console.error("Failed to get repository status:", error);
+      log2.error("GitManager", "Failed to get repository status", error);
       throw error;
     }
   }
@@ -15065,19 +15171,27 @@ var GitManager = class {
    */
   async sync(repoUrl, branchName, commitMessage) {
     try {
+      log2.info("GitManager", `Starting sync operation with repo: ${repoUrl}, branch: ${branchName}`);
       await this.initializeRepo(repoUrl, branchName);
+      log2.debug("GitManager", "Pulling latest changes before committing");
       await this.pull(branchName);
+      log2.debug("GitManager", "Checking for local changes");
       const changedFiles = await this.getChangedFiles();
+      log2.info("GitManager", `Found ${changedFiles.length} changed files`);
       if (changedFiles.length > 0) {
+        log2.debug("GitManager", `Changed files: ${changedFiles.join(", ")}`);
         await this.addAll();
         await this.commit(commitMessage);
         await this.push(branchName);
-        new import_obsidian.Notice(`Git sync completed: ${changedFiles.length} files updated`);
+        log2.info("GitManager", `Sync completed successfully with ${changedFiles.length} files updated`);
+        new import_obsidian2.Notice(`Git sync completed: ${changedFiles.length} files updated`);
       } else {
-        new import_obsidian.Notice("Git sync completed: No changes to commit");
+        log2.info("GitManager", "Sync completed: No changes to commit");
+        new import_obsidian2.Notice("Git sync completed: No changes to commit");
       }
       this.updateStatus("Ready");
     } catch (error) {
+      log2.error("GitManager", "Sync operation failed", error);
       this.updateStatus("Sync failed");
       throw error;
     }
@@ -15097,7 +15211,7 @@ var DEFAULT_SETTINGS = {
   autoSyncInterval: 0,
   autoCommitMessage: "Vault backup: {{date}}"
 };
-var GitSyncPlugin = class extends import_obsidian2.Plugin {
+var GitSyncPlugin = class extends import_obsidian3.Plugin {
   constructor() {
     super(...arguments);
     this.intervalId = null;
@@ -15106,14 +15220,18 @@ var GitSyncPlugin = class extends import_obsidian2.Plugin {
   }
   async onload() {
     await this.loadSettings();
+    log2.setLogLevel(0 /* DEBUG */);
+    log2.info("GitSyncPlugin", "Initializing Git Sync plugin");
     this.fs = new import_lightning_fs.default("obsidian-git");
+    log2.debug("GitSyncPlugin", "File system initialized");
     const ribbonIconEl = this.addRibbonIcon("refresh-cw", "Git Sync", async () => {
+      log2.info("GitSyncPlugin", "Manual sync triggered from ribbon");
       try {
         await this.syncVault();
-        new import_obsidian2.Notice("Git sync completed successfully");
+        new import_obsidian3.Notice("Git sync completed successfully");
       } catch (error) {
-        console.error("Git sync failed:", error);
-        new import_obsidian2.Notice(`Git sync failed: ${error.message}`);
+        log2.error("GitSyncPlugin", "Manual sync failed", error);
+        new import_obsidian3.Notice(`Git sync failed: ${error.message}`);
       }
     });
     this.statusBarItem = this.addStatusBarItem();
@@ -15162,8 +15280,10 @@ var GitSyncPlugin = class extends import_obsidian2.Plugin {
         username: this.settings.username,
         password: this.settings.password,
         author: {
-          name: this.settings.author.name,
-          email: this.settings.author.email
+          name: this.settings.author.name || "Obsidian Git Sync User",
+          // Ensure a valid default name
+          email: this.settings.author.email || "user@example.com"
+          // Ensure a valid default email
         }
       };
       if (this.statusBarItem) {
@@ -15171,6 +15291,15 @@ var GitSyncPlugin = class extends import_obsidian2.Plugin {
       } else {
         throw new Error("Status bar item not initialized");
       }
+    } else {
+      this.gitManager.updateCredentials({
+        username: this.settings.username,
+        password: this.settings.password,
+        author: {
+          name: this.settings.author.name || "Obsidian Git Sync User",
+          email: this.settings.author.email || "user@example.com"
+        }
+      });
     }
     try {
       await this.gitManager.sync(
@@ -15185,7 +15314,7 @@ var GitSyncPlugin = class extends import_obsidian2.Plugin {
     }
   }
 };
-var GitSyncSettingTab = class extends import_obsidian2.PluginSettingTab {
+var GitSyncSettingTab = class extends import_obsidian3.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.plugin = plugin;
@@ -15194,46 +15323,46 @@ var GitSyncSettingTab = class extends import_obsidian2.PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     containerEl.createEl("h2", { text: "Git Sync Settings" });
-    new import_obsidian2.Setting(containerEl).setName("Repository URL").setDesc("The URL of your Git repository").addText((text) => text.setPlaceholder("https://github.com/username/repo.git").setValue(this.plugin.settings.repoUrl).onChange(async (value) => {
+    new import_obsidian3.Setting(containerEl).setName("Repository URL").setDesc("The URL of your Git repository").addText((text) => text.setPlaceholder("https://github.com/username/repo.git").setValue(this.plugin.settings.repoUrl).onChange(async (value) => {
       this.plugin.settings.repoUrl = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian2.Setting(containerEl).setName("Branch").setDesc("The branch to sync with").addText((text) => text.setPlaceholder("main").setValue(this.plugin.settings.branchName).onChange(async (value) => {
+    new import_obsidian3.Setting(containerEl).setName("Branch").setDesc("The branch to sync with").addText((text) => text.setPlaceholder("main").setValue(this.plugin.settings.branchName).onChange(async (value) => {
       this.plugin.settings.branchName = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian2.Setting(containerEl).setName("Username").setDesc("Your Git username").addText((text) => text.setPlaceholder("username").setValue(this.plugin.settings.username).onChange(async (value) => {
+    new import_obsidian3.Setting(containerEl).setName("Username").setDesc("Your Git username").addText((text) => text.setPlaceholder("username").setValue(this.plugin.settings.username).onChange(async (value) => {
       this.plugin.settings.username = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian2.Setting(containerEl).setName("Password/Token").setDesc("Your Git password or personal access token").addText((text) => text.setPlaceholder("password or token").setValue(this.plugin.settings.password).onChange(async (value) => {
+    new import_obsidian3.Setting(containerEl).setName("Password/Token").setDesc("Your Git password or personal access token").addText((text) => text.setPlaceholder("password or token").setValue(this.plugin.settings.password).onChange(async (value) => {
       text.inputEl.type = "password";
       this.plugin.settings.password = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian2.Setting(containerEl).setName("Author Name").setDesc("Your name for Git commits").addText((text) => text.setPlaceholder("Your Name").setValue(this.plugin.settings.author.name).onChange(async (value) => {
+    new import_obsidian3.Setting(containerEl).setName("Author Name").setDesc("Your name for Git commits").addText((text) => text.setPlaceholder("Your Name").setValue(this.plugin.settings.author.name).onChange(async (value) => {
       this.plugin.settings.author.name = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian2.Setting(containerEl).setName("Author Email").setDesc("Your email for Git commits").addText((text) => text.setPlaceholder("your.email@example.com").setValue(this.plugin.settings.author.email).onChange(async (value) => {
+    new import_obsidian3.Setting(containerEl).setName("Author Email").setDesc("Your email for Git commits").addText((text) => text.setPlaceholder("your.email@example.com").setValue(this.plugin.settings.author.email).onChange(async (value) => {
       this.plugin.settings.author.email = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian2.Setting(containerEl).setName("Auto Sync Interval").setDesc("How often to automatically sync (in minutes, 0 to disable)").addText((text) => text.setPlaceholder("0").setValue(String(this.plugin.settings.autoSyncInterval)).onChange(async (value) => {
+    new import_obsidian3.Setting(containerEl).setName("Auto Sync Interval").setDesc("How often to automatically sync (in minutes, 0 to disable)").addText((text) => text.setPlaceholder("0").setValue(String(this.plugin.settings.autoSyncInterval)).onChange(async (value) => {
       const numValue = Number(value);
       if (!isNaN(numValue) && numValue >= 0) {
         this.plugin.settings.autoSyncInterval = numValue;
         await this.plugin.saveSettings();
       }
     }));
-    new import_obsidian2.Setting(containerEl).setName("Auto Commit Message").setDesc("Message for automatic commits. Use {{date}} for current date/time").addText((text) => text.setPlaceholder("Vault backup: {{date}}").setValue(this.plugin.settings.autoCommitMessage).onChange(async (value) => {
+    new import_obsidian3.Setting(containerEl).setName("Auto Commit Message").setDesc("Message for automatic commits. Use {{date}} for current date/time").addText((text) => text.setPlaceholder("Vault backup: {{date}}").setValue(this.plugin.settings.autoCommitMessage).onChange(async (value) => {
       this.plugin.settings.autoCommitMessage = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian2.Setting(containerEl).setName("Test Connection").setDesc("Test the connection to your Git repository").addButton((button) => button.setButtonText("Test").onClick(async () => {
+    new import_obsidian3.Setting(containerEl).setName("Test Connection").setDesc("Test the connection to your Git repository").addButton((button) => button.setButtonText("Test").onClick(async () => {
       try {
         if (!this.plugin.settings.repoUrl) {
-          new import_obsidian2.Notice("Please enter a repository URL first");
+          new import_obsidian3.Notice("Please enter a repository URL first");
           return;
         }
         if (!this.plugin.gitManager) {
@@ -15252,22 +15381,22 @@ var GitSyncSettingTab = class extends import_obsidian2.PluginSettingTab {
             throw new Error("Status bar item not initialized");
           }
         }
-        new import_obsidian2.Notice("Testing connection...");
+        new import_obsidian3.Notice("Testing connection...");
         await this.plugin.gitManager.initializeRepo(
           this.plugin.settings.repoUrl,
           this.plugin.settings.branchName
         );
-        new import_obsidian2.Notice("Connection successful!");
+        new import_obsidian3.Notice("Connection successful!");
       } catch (error) {
-        new import_obsidian2.Notice(`Connection test failed: ${error.message}`);
+        new import_obsidian3.Notice(`Connection test failed: ${error.message}`);
       }
     }));
-    new import_obsidian2.Setting(containerEl).setName("Manual Sync").setDesc("Manually sync your vault with the Git repository").addButton((button) => button.setButtonText("Sync Now").onClick(async () => {
+    new import_obsidian3.Setting(containerEl).setName("Manual Sync").setDesc("Manually sync your vault with the Git repository").addButton((button) => button.setButtonText("Sync Now").onClick(async () => {
       try {
         await this.plugin.syncVault();
-        new import_obsidian2.Notice("Git sync completed successfully");
+        new import_obsidian3.Notice("Git sync completed successfully");
       } catch (error) {
-        new import_obsidian2.Notice(`Git sync failed: ${error.message}`);
+        new import_obsidian3.Notice(`Git sync failed: ${error.message}`);
       }
     }));
   }

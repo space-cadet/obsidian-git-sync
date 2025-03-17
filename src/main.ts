@@ -119,15 +119,15 @@ export default class GitSyncPlugin extends Plugin {
 			'{{date}}', 
 			new Date().toLocaleString()
 		);
-
+	
 		// Initialize GitManager if not already done
 		if (!this.gitManager) {
 			const credentials: GitCredentials = {
 				username: this.settings.username,
 				password: this.settings.password,
 				author: {
-					name: this.settings.author.name,
-					email: this.settings.author.email
+					name: this.settings.author.name || 'Obsidian Git Sync User', // Ensure a valid default name
+					email: this.settings.author.email || 'user@example.com' // Ensure a valid default email
 				}
 			};
 			if (this.statusBarItem) {
@@ -135,8 +135,18 @@ export default class GitSyncPlugin extends Plugin {
 			} else {
 				throw new Error('Status bar item not initialized');
 			}
+		} else {
+			// Update credentials in case they've changed in settings
+			this.gitManager.updateCredentials({
+				username: this.settings.username,
+				password: this.settings.password,
+				author: {
+					name: this.settings.author.name || 'Obsidian Git Sync User',
+					email: this.settings.author.email || 'user@example.com'
+				}
+			});
 		}
-
+	
 		// Perform the sync operation
 		try {
 			await this.gitManager.sync(

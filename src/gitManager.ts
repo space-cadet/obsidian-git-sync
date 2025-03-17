@@ -1,30 +1,41 @@
 import * as git from 'isomorphic-git';
 import * as http from 'isomorphic-git/http/web';
+import { log } from './logger';
 
-// Create custom http client with CORS headers
-const PROXY_URL = 'http://localhost:3001/proxy?url=';
-const customHttpClient = {
-  request: async (config: any) => {
-    const proxiedUrl = PROXY_URL + encodeURIComponent(config.url);
+class GitHttpClient {
+  private credentials: GitCredentials;
+  private static readonly PROXY_URL = 'http://localhost:3001/proxy?url=';
+
+  constructor(credentials: GitCredentials) {
+    this.credentials = credentials;
+  }
+
+  async request(config: any) {
+    const proxiedUrl = GitHttpClient.PROXY_URL + encodeURIComponent(config.url);
+    log.debug('GitHttpClient', `Proxying request to: ${config.url}`);
+    
     const headers = {
       ...config.headers,
-      'X-Requested-With': 'obsidian-git-sync'
+      'X-Requested-With': 'obsidian-git-sync',
+      'X-Git-Username': this.credentials.username,
+      'X-Git-Password': this.credentials.password
     };
 
-    if (this.credentials?.username) {
-      headers['X-Git-Username'] = this.credentials.username;
+    try {
+      log.debug('GitHttpClient', `Sending ${config.method || 'GET'} request`);
+      const response = await http.request({
+        ...config,
+        url: proxiedUrl,
+        headers
+      });
+      log.debug('GitHttpClient', `Response status: ${response.statusCode}`);
+      return response;
+    } catch (error) {
+      log.error('GitHttpClient', `Request failed: ${error.message}`, error);
+      throw error;
     }
-    if (this.credentials?.password) {
-      headers['X-Git-Password'] = this.credentials.password;
-    }
-
-    return http.request({
-      ...config,
-      url: proxiedUrl,
-      headers
-    });
   }
-};
+}
 import * as fs from '@isomorphic-git/lightning-fs';
 import { Notice } from 'obsidian';
 
@@ -54,7 +65,7 @@ export class GitManager {
         if (this.statusBarItem) {
             this.statusBarItem.setText(`Git: ${message}`);
         }
-        console.log(`Git status: ${message}`);
+        log.info('GitManager', message);
     }
 
     /**
@@ -62,35 +73,42 @@ export class GitManager {
      */
     async initializeRepo(repoUrl: string, branchName: string): Promise<boolean> {
         try {
+            log.debug('GitManager', `Initializing repository: ${repoUrl}, branch: ${branchName}`);
             // Check if .git directory exists
             const isRepo = await this.isRepository();
             
             if (!isRepo) {
                 this.updateStatus('Cloning repository...');
+                log.info('GitManager', `Cloning repository from ${repoUrl} (branch: ${branchName})`);
                 
                 // Clone the repository
                 await git.clone({
                     fs: this.fs,
-                    http: customHttpClient,
+                    http: new GitHttpClient(this.credentials),
                     dir: this.dir,
                     url: repoUrl,
                     ref: branchName,
                     singleBranch: true,
                     depth: 1,
-                    onAuth: () => ({
-                        username: this.credentials.username,
-                        password: this.credentials.password
-                    })
+                    onAuth: () => {
+                        log.debug('GitManager', 'Authentication requested by remote');
+                        return {
+                            username: this.credentials.username,
+                            password: this.credentials.password
+                        };
+                    }
                 });
                 
                 this.updateStatus('Repository cloned');
+                log.info('GitManager', `Repository successfully cloned to ${this.dir}`);
                 return true;
             }
             
             this.updateStatus('Repository already exists');
+            log.info('GitManager', `Repository already exists at ${this.dir}`);
             return true;
         } catch (error) {
-            console.error('Failed to initialize repository:', error);
+            log.error('GitManager', 'Failed to initialize repository', error);
             this.updateStatus('Failed to initialize');
             throw error;
         }
@@ -188,6 +206,7 @@ export class GitManager {
     async commit(message: string): Promise<string> {
         try {
             this.updateStatus('Committing changes...');
+            log.debug('GitManager', `Committing changes with message: ${message}`);
             
             const sha = await git.commit({
                 fs: this.fs,
@@ -200,9 +219,10 @@ export class GitManager {
             });
             
             this.updateStatus('Changes committed');
+            log.info('GitManager', `Changes committed successfully with SHA: ${sha.slice(0, 7)}`);
             return sha;
         } catch (error) {
-            console.error('Failed to commit changes:', error);
+            log.error('GitManager', 'Failed to commit changes', error);
             this.updateStatus('Commit failed');
             throw error;
         }
@@ -214,22 +234,27 @@ export class GitManager {
     async push(branchName: string): Promise<void> {
         try {
             this.updateStatus('Pushing changes...');
+            log.debug('GitManager', `Pushing changes to remote branch: ${branchName}`);
             
             await git.push({
                 fs: this.fs,
-                http,
+                http: new GitHttpClient(this.credentials),
                 dir: this.dir,
                 remote: 'origin',
                 ref: branchName,
-                onAuth: () => ({
-                    username: this.credentials.username,
-                    password: this.credentials.password
-                })
+                onAuth: () => {
+                    log.debug('GitManager', 'Authentication requested for push operation');
+                    return {
+                        username: this.credentials.username,
+                        password: this.credentials.password
+                    };
+                }
             });
             
             this.updateStatus('Push completed');
+            log.info('GitManager', `Successfully pushed changes to remote branch: ${branchName}`);
         } catch (error) {
-            console.error('Failed to push changes:', error);
+            log.error('GitManager', `Failed to push changes to branch ${branchName}`, error);
             this.updateStatus('Push failed');
             throw error;
         }
@@ -240,6 +265,7 @@ export class GitManager {
      */
     async getStatus(): Promise<{ branch: string; ahead: number; behind: number; }> {
         try {
+            log.debug('GitManager', 'Getting repository status');
             const currentBranch = await git.currentBranch({
                 fs: this.fs,
                 dir: this.dir,
@@ -247,8 +273,11 @@ export class GitManager {
             });
             
             if (!currentBranch) {
+                log.warn('GitManager', 'Not currently on any branch');
                 throw new Error('Not on a branch');
             }
+            
+            log.debug('GitManager', `Current branch: ${currentBranch}`);
             
             // Get ahead/behind counts
             const [ahead, behind] = await Promise.all([
@@ -264,13 +293,15 @@ export class GitManager {
                 }).then(commits => commits.length).catch(() => 0)
             ]);
             
+            log.info('GitManager', `Repository status: branch=${currentBranch}, ahead=${ahead}, behind=${behind}`);
+            
             return {
                 branch: currentBranch,
                 ahead,
                 behind
             };
         } catch (error) {
-            console.error('Failed to get repository status:', error);
+            log.error('GitManager', 'Failed to get repository status', error);
             throw error;
         }
     }
@@ -280,16 +311,23 @@ export class GitManager {
      */
     async sync(repoUrl: string, branchName: string, commitMessage: string): Promise<void> {
         try {
+            log.info('GitManager', `Starting sync operation with repo: ${repoUrl}, branch: ${branchName}`);
+            
             // Initialize or check repository
             await this.initializeRepo(repoUrl, branchName);
             
             // Pull changes first
+            log.debug('GitManager', 'Pulling latest changes before committing');
             await this.pull(branchName);
             
             // Check if there are changes to commit
+            log.debug('GitManager', 'Checking for local changes');
             const changedFiles = await this.getChangedFiles();
+            log.info('GitManager', `Found ${changedFiles.length} changed files`);
             
             if (changedFiles.length > 0) {
+                log.debug('GitManager', `Changed files: ${changedFiles.join(', ')}`);
+                
                 // Add all changes
                 await this.addAll();
                 
@@ -299,13 +337,16 @@ export class GitManager {
                 // Push changes
                 await this.push(branchName);
                 
+                log.info('GitManager', `Sync completed successfully with ${changedFiles.length} files updated`);
                 new Notice(`Git sync completed: ${changedFiles.length} files updated`);
             } else {
+                log.info('GitManager', 'Sync completed: No changes to commit');
                 new Notice('Git sync completed: No changes to commit');
             }
             
             this.updateStatus('Ready');
         } catch (error) {
+            log.error('GitManager', 'Sync operation failed', error);
             this.updateStatus('Sync failed');
             throw error;
         }

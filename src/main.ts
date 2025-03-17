@@ -3,6 +3,7 @@ import * as git from 'isomorphic-git';
 import * as http from 'isomorphic-git/http/web';
 import FS from '@isomorphic-git/lightning-fs';
 import { GitManager, GitCredentials } from './gitManager';
+import { log, LogLevel } from './logger';
 
 interface GitSyncSettings {
 	repoUrl: string;
@@ -40,16 +41,22 @@ export default class GitSyncPlugin extends Plugin {
 	async onload() {
 		await this.loadSettings();
 
+		// Configure logger
+		log.setLogLevel(LogLevel.DEBUG); // Set to DEBUG during development, INFO for production
+		log.info('GitSyncPlugin', 'Initializing Git Sync plugin');
+
 		// Initialize the file system
 		this.fs = new FS('obsidian-git');
+		log.debug('GitSyncPlugin', 'File system initialized');
 
 		// Add ribbon icon for manual sync
 		const ribbonIconEl = this.addRibbonIcon('refresh-cw', 'Git Sync', async () => {
+			log.info('GitSyncPlugin', 'Manual sync triggered from ribbon');
 			try {
 				await this.syncVault();
 				new Notice('Git sync completed successfully');
 			} catch (error) {
-				console.error('Git sync failed:', error);
+				log.error('GitSyncPlugin', 'Manual sync failed', error);
 				new Notice(`Git sync failed: ${error.message}`);
 			}
 		});

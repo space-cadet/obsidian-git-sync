@@ -1,0 +1,12 @@
+{
+  "repoUrl": "https://github.com/space-cadet/git-dummy-repo.git",
+  "branchName": "main",
+  "username": "space_cadet",
+  "password": "",
+  "author": {
+    "name": "Deepak Vaid",
+    "email": "dvaid79@gmail.com"
+  },
+  "autoSyncInterval": 0,
+  "autoCommitMessage": "Vault backup: {{date}}"
+}

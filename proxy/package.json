@@ -1,9 +1,10 @@
 {
   "name": "proxy",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Proxy server for Git operations",
+  "main": "proxyServer.js",
   "scripts": {
+    "start": "node proxyServer.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -11,8 +12,9 @@
   "license": "ISC",
   "packageManager": "pnpm@10.6.2",
   "dependencies": {
-    "cors": "2.8.5",
-    "express": "4.21.2",
-    "http-proxy-middleware": "3.0.3"
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "http-proxy-middleware": "^2.0.6",
+    "morgan": "^1.10.0"
   }
 }

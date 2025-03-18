@@ -5298,8 +5298,7 @@ var GitManager = class {
    */
   async isRepository() {
     try {
-      await this.git.revparse(["--git-dir"]);
-      return true;
+      return await this.git.checkIsRepo();
     } catch (error) {
       return false;
     }
@@ -5336,6 +5335,11 @@ var GitManager = class {
    * Get a list of all changed files
    */
   async getChangedFiles() {
+    const isRepo = await this.isRepository();
+    if (!isRepo) {
+      this.updateStatus("Not a git repository");
+      return [];
+    }
     try {
       const status = await this.git.status();
       return [
@@ -5347,6 +5351,23 @@ var GitManager = class {
       ];
     } catch (error) {
       console.error("Failed to get changed files:", error);
+      throw error;
+    }
+  }
+  /**
+   * Get git log entries in a formatted string.
+   */
+  async getGitLog() {
+    const isRepo = await this.isRepository();
+    if (!isRepo) {
+      this.updateStatus("Not a git repository");
+      return "Not a git repository";
+    }
+    try {
+      const logData = await this.git.log();
+      return logData.all.map((entry) => `${entry.date} - ${entry.message} (${entry.author_name})`).join("\n");
+    } catch (error) {
+      console.error("Failed to get git log:", error);
       throw error;
     }
   }
@@ -5411,8 +5432,44 @@ var GitSyncView = class extends import_obsidian2.ItemView {
   }
   async onOpen() {
     this.containerEl.empty();
-    this.containerEl.createEl("h2", { text: "Git Sync Sidebar" });
-    this.containerEl.createEl("p", { text: "Your Git status and quick actions will appear here." });
+    const tabHeader = this.containerEl.createEl("div", { cls: "tab-header" });
+    const gitLogTabButton = tabHeader.createEl("button", { text: "Git Log", cls: "tab-button active" });
+    const gitStatusTabButton = tabHeader.createEl("button", { text: "Git Status", cls: "tab-button" });
+    const contentContainer = this.containerEl.createEl("div", { cls: "tab-content" });
+    const setActiveTab = async (tabName) => {
+      contentContainer.empty();
+      [gitLogTabButton, gitStatusTabButton].forEach((btn) => {
+        btn.toggleClass("active", btn.innerText === tabName);
+      });
+      if (tabName === "Git Log") {
+        if (this.plugin.gitManager) {
+          try {
+            const logOutput = await this.plugin.gitManager.getGitLog();
+            contentContainer.createEl("pre", { text: logOutput });
+          } catch (e) {
+            contentContainer.createEl("pre", { text: "Error fetching git log." });
+          }
+        } else {
+          contentContainer.createEl("pre", { text: "Git manager not initialized." });
+        }
+      } else if (tabName === "Git Status") {
+        if (this.plugin.gitManager) {
+          try {
+            const files = await this.plugin.gitManager.getChangedFiles();
+            const statusOutput = files.length > 0 ? files.join("\n") : "No changes detected.";
+            contentContainer.createEl("pre", { text: statusOutput });
+          } catch (e) {
+            contentContainer.createEl("pre", { text: "Error fetching git status." });
+          }
+        } else {
+          contentContainer.createEl("pre", { text: "Git manager not initialized." });
+        }
+      }
+    };
+    gitLogTabButton.onclick = async () => await setActiveTab("Git Log");
+    gitStatusTabButton.onclick = async () => await setActiveTab("Git Status");
+    await setActiveTab("Git Log");
+    setActiveTab("Git Log");
   }
   async onClose() {
   }

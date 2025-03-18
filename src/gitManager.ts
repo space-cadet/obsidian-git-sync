@@ -1,5 +1,7 @@
 import simpleGit, { SimpleGit } from 'simple-git';
 import { log } from './logger';
+import fs from 'fs';
+import path from 'path';
 import { Notice } from 'obsidian';
 
 export interface GitCredentials {
@@ -98,8 +100,7 @@ export class GitManager {
      */
     async isRepository(): Promise<boolean> {
         try {
-            await this.git.revparse(['--git-dir']);
-            return true;
+            return await this.git.checkIsRepo();
         } catch (error) {
             return false;
         }
@@ -141,6 +142,11 @@ export class GitManager {
      * Get a list of all changed files
      */
     async getChangedFiles(): Promise<string[]> {
+        const isRepo = await this.isRepository();
+        if (!isRepo) {
+            this.updateStatus('Not a git repository');
+            return [];
+        }
         try {
             const status = await this.git.status();
             return [
@@ -155,6 +161,24 @@ export class GitManager {
             throw error;
         }
     }
+            
+            /**
+             * Get git log entries in a formatted string.
+             */
+            async getGitLog(): Promise<string> {
+                const isRepo = await this.isRepository();
+                if (!isRepo) {
+                    this.updateStatus('Not a git repository');
+                    return 'Not a git repository';
+                }
+                try {
+                    const logData = await this.git.log();
+                    return logData.all.map(entry => `${entry.date} - ${entry.message} (${entry.author_name})`).join('\n');
+                } catch (error) {
+                    console.error('Failed to get git log:', error);
+                    throw error;
+                }
+            }
 
     /**
      * Commit staged changes

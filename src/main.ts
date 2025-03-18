@@ -38,15 +38,35 @@ export default class GitSyncPlugin extends Plugin {
 	statusBarItem: HTMLElement | null = null;
 
 	async onload() {
+		log.info('GitSyncPlugin', 'ONLOAD FUNCTION IS BEING EXECUTED');
 		await this.loadSettings();
 
 		// Configure logger
 		log.setLogLevel(LogLevel.DEBUG); // Set to DEBUG during development, INFO for production
 		log.info('GitSyncPlugin', 'Initializing Git Sync plugin');
 
-		// Initialize the file system
-		// Initialize Git operations in the vault directory
-		log.debug('GitSyncPlugin', 'File system initialized');
+		// Initialize the status bar item first since GitManager needs it
+		this.statusBarItem = this.addStatusBarItem();
+		this.statusBarItem.setText('Git: Ready');
+
+		// Initialize GitManager
+		try {
+			log.debug('GitSyncPlugin', 'Getting vault path...');
+			const vaultPath = this.app.vault.getRoot().path;
+			log.debug('GitSyncPlugin', `Vault path: ${vaultPath}`);
+			const credentials: GitCredentials = {
+				username: this.settings.username,
+				password: this.settings.password,
+				author: {
+					name: this.settings.author.name || 'Default Name',
+					email: this.settings.author.email
+				}
+			};
+			this.gitManager = new GitManager(vaultPath, credentials, this.statusBarItem);
+			log.debug('GitSyncPlugin', `GitManager initialized with vault path: ${vaultPath}`);
+		} catch (error) {
+			log.error('GitSyncPlugin', 'Failed to initialize GitManager', error);
+		}
 
 		// Add ribbon icon for manual sync
 		const ribbonIconEl = this.addRibbonIcon('refresh-cw', 'Git Sync', async () => {
@@ -60,9 +80,6 @@ export default class GitSyncPlugin extends Plugin {
 			}
 		});
 
-		// Add status bar item
-		this.statusBarItem = this.addStatusBarItem();
-		this.statusBarItem.setText('Git: Ready');
 		// Register the Git Sync view for the right sidebar
 		this.registerView(VIEW_TYPE_GITSYNC, (leaf) => new GitSyncView(leaf, this));
 		// Open the Git Sync view in the right sidebar, if available

@@ -69,8 +69,6 @@ export class GitSyncView extends ItemView {
         gitStatusTabButton.onclick = async () => await setActiveTab('Git Status');
         // Initialize with Git Log tab active
         await setActiveTab('Git Log');
-        // Initialize with Git Log tab active
-        setActiveTab('Git Log');
     }
 
     async onClose() {}

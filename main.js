@@ -5298,8 +5298,10 @@ var GitManager = class {
    */
   async isRepository() {
     try {
+      log.debug("GitManager", `Checking if ${this.dir} is a repository`);
       return await this.git.checkIsRepo();
     } catch (error) {
+      log.error("GitManager", `Error checking if ${this.dir} is a repository`, error);
       return false;
     }
   }
@@ -5469,7 +5471,6 @@ var GitSyncView = class extends import_obsidian2.ItemView {
     gitLogTabButton.onclick = async () => await setActiveTab("Git Log");
     gitStatusTabButton.onclick = async () => await setActiveTab("Git Status");
     await setActiveTab("Git Log");
-    setActiveTab("Git Log");
   }
   async onClose() {
   }
@@ -5496,10 +5497,29 @@ var GitSyncPlugin = class extends import_obsidian3.Plugin {
     this.statusBarItem = null;
   }
   async onload() {
+    log.info("GitSyncPlugin", "ONLOAD FUNCTION IS BEING EXECUTED");
     await this.loadSettings();
     log.setLogLevel(0 /* DEBUG */);
     log.info("GitSyncPlugin", "Initializing Git Sync plugin");
-    log.debug("GitSyncPlugin", "File system initialized");
+    this.statusBarItem = this.addStatusBarItem();
+    this.statusBarItem.setText("Git: Ready");
+    try {
+      log.debug("GitSyncPlugin", "Getting vault path...");
+      const vaultPath = this.app.vault.getRoot().path;
+      log.debug("GitSyncPlugin", `Vault path: ${vaultPath}`);
+      const credentials = {
+        username: this.settings.username,
+        password: this.settings.password,
+        author: {
+          name: this.settings.author.name || "Default Name",
+          email: this.settings.author.email
+        }
+      };
+      this.gitManager = new GitManager(vaultPath, credentials, this.statusBarItem);
+      log.debug("GitSyncPlugin", `GitManager initialized with vault path: ${vaultPath}`);
+    } catch (error) {
+      log.error("GitSyncPlugin", "Failed to initialize GitManager", error);
+    }
     const ribbonIconEl = this.addRibbonIcon("refresh-cw", "Git Sync", async () => {
       log.info("GitSyncPlugin", "Manual sync triggered from ribbon");
       try {
@@ -5510,8 +5530,6 @@ var GitSyncPlugin = class extends import_obsidian3.Plugin {
         new import_obsidian3.Notice(`Git sync failed: ${error.message}`);
       }
     });
-    this.statusBarItem = this.addStatusBarItem();
-    this.statusBarItem.setText("Git: Ready");
     this.registerView(VIEW_TYPE_GITSYNC, (leaf) => new GitSyncView(leaf, this));
     const rightLeaf = this.app.workspace.getRightLeaf(false);
     if (rightLeaf) {

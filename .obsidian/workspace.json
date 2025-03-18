@@ -145,7 +145,7 @@
             }
           },
           {
-            "id": "998dd084edd08b76",
+            "id": "400bedab0b85326b",
             "type": "leaf",
             "state": {
               "type": "obsidian-git-sync-view",
@@ -172,7 +172,7 @@
       "obsidian-git-sync:Git Sync": false
     }
   },
-  "active": "998dd084edd08b76",
+  "active": "400bedab0b85326b",
   "lastOpenFiles": [
     "src/gitSyncView.ts"
   ]

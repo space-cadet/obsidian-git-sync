@@ -100,8 +100,10 @@ export class GitManager {
      */
     async isRepository(): Promise<boolean> {
         try {
+            log.debug('GitManager', `Checking if ${this.dir} is a repository`);
             return await this.git.checkIsRepo();
         } catch (error) {
+            log.error('GitManager', `Error checking if ${this.dir} is a repository`, error);
             return false;
         }
     }

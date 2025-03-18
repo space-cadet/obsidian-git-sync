@@ -143,13 +143,23 @@
               "icon": "lucide-list",
               "title": "Outline"
             }
+          },
+          {
+            "id": "b93dd0bd69fe5473",
+            "type": "leaf",
+            "state": {
+              "type": "obsidian-git-sync-view",
+              "state": {},
+              "icon": "lucide-file",
+              "title": "Git Sync"
+            }
           }
         ],
-        "currentTab": 3
+        "currentTab": 4
       }
     ],
     "direction": "horizontal",
-    "width": 300
+    "width": 413.5
   },
   "left-ribbon": {
     "hiddenItems": {
@@ -162,6 +172,8 @@
       "obsidian-git-sync:Git Sync": false
     }
   },
-  "active": "6c6b5879d3766117",
-  "lastOpenFiles": []
+  "active": "b93dd0bd69fe5473",
+  "lastOpenFiles": [
+    "src/gitSyncView.ts"
+  ]
 }

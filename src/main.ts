@@ -1,6 +1,7 @@
 import { App, Plugin, PluginSettingTab, Setting, Notice } from 'obsidian';
 import { SimpleGit } from 'simple-git';
 import { GitManager, GitCredentials } from './gitManager';
+import { VIEW_TYPE_GITSYNC, GitSyncView } from './gitSyncView';
 import { log, LogLevel } from './logger';
 
 interface GitSyncSettings {
@@ -62,6 +63,16 @@ export default class GitSyncPlugin extends Plugin {
 		// Add status bar item
 		this.statusBarItem = this.addStatusBarItem();
 		this.statusBarItem.setText('Git: Ready');
+		// Register the Git Sync view for the right sidebar
+		this.registerView(VIEW_TYPE_GITSYNC, (leaf) => new GitSyncView(leaf, this));
+		// Open the Git Sync view in the right sidebar, if available
+		const rightLeaf = this.app.workspace.getRightLeaf(false);
+		if (rightLeaf) {
+		    rightLeaf.setViewState({
+		        type: VIEW_TYPE_GITSYNC,
+		        active: true
+		    });
+		}
 
 		// Add settings tab
 		this.addSettingTab(new GitSyncSettingTab(this.app, this));

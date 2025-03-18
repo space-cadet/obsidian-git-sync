@@ -28,9 +28,9 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "isomorphic-git": "^1.21.0",
-    "@isomorphic-git/lightning-fs": "^4.6.0",
+    "@types/node-fetch": "^2.6.2",
     "node-fetch": "^2.6.7",
-    "@types/node-fetch": "^2.6.2"
+    "simple-git": "3.27.0",
+    "winston": "3.17.0"
   }
 }

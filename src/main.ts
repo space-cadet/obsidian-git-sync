@@ -1,7 +1,5 @@
 import { App, Plugin, PluginSettingTab, Setting, Notice } from 'obsidian';
-import * as git from 'isomorphic-git';
-import * as http from 'isomorphic-git/http/web';
-import FS from '@isomorphic-git/lightning-fs';
+import { SimpleGit } from 'simple-git';
 import { GitManager, GitCredentials } from './gitManager';
 import { log, LogLevel } from './logger';
 
@@ -46,7 +44,7 @@ export default class GitSyncPlugin extends Plugin {
 		log.info('GitSyncPlugin', 'Initializing Git Sync plugin');
 
 		// Initialize the file system
-		this.fs = new FS('obsidian-git');
+		// Initialize Git operations in the vault directory
 		log.debug('GitSyncPlugin', 'File system initialized');
 
 		// Add ribbon icon for manual sync
@@ -119,24 +117,24 @@ export default class GitSyncPlugin extends Plugin {
 			'{{date}}', 
 			new Date().toLocaleString()
 		);
-
+	
 		// Initialize GitManager if not already done
 		if (!this.gitManager) {
 			const credentials: GitCredentials = {
 				username: this.settings.username,
 				password: this.settings.password,
 				author: {
-					name: this.settings.author.name,
+					name: this.settings.author.name || 'Default Name', // Ensure a default name is provided
 					email: this.settings.author.email
 				}
 			};
 			if (this.statusBarItem) {
-				this.gitManager = new GitManager(this.fs, vaultPath, credentials, this.statusBarItem);
+				this.gitManager = new GitManager(vaultPath, credentials, this.statusBarItem);
 			} else {
 				throw new Error('Status bar item not initialized');
 			}
 		}
-
+	
 		// Perform the sync operation
 		try {
 			await this.gitManager.sync(
@@ -283,16 +281,15 @@ class GitSyncSettingTab extends PluginSettingTab {
 								}
 							};
 							if (this.plugin.statusBarItem) {
-								this.plugin.gitManager = new GitManager(this.plugin.fs, vaultPath, credentials, this.plugin.statusBarItem);
+								this.plugin.gitManager = new GitManager(vaultPath, credentials, this.plugin.statusBarItem);
 							} else {
 								throw new Error('Status bar item not initialized');
 							}
 						}
 
 						new Notice('Testing connection...');
-						await this.plugin.gitManager.initializeRepo(
-							this.plugin.settings.repoUrl,
-							this.plugin.settings.branchName
+						await this.plugin.gitManager.testConnection(
+						    this.plugin.settings.repoUrl
 						);
 						new Notice('Connection successful!');
 					} catch (error) {

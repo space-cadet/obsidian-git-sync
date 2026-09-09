@@ -544,13 +544,18 @@
 }
 
 .git-sync-bottom-action.is-destructive {
-	background: var(--background-modifier-error);
-	color: var(--text-error);
+	background: color-mix(in srgb, var(--background-modifier-error) 65%, var(--background-primary));
+	color: var(--text-on-accent) !important;
+}
+
+.git-sync-bottom-action.is-destructive svg {
+	color: currentColor;
+	stroke: currentColor;
 }
 
 .git-sync-bottom-action.is-destructive:hover {
-	background: var(--text-error);
-	color: var(--text-on-accent);
+	background: color-mix(in srgb, var(--background-modifier-error) 78%, var(--background-primary));
+	color: var(--text-on-accent) !important;
 }
 
 .git-sync-settings-feedback {

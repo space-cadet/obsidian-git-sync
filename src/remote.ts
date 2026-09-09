@@ -1,4 +1,4 @@
-import { DataAdapter, requestUrl } from "obsidian";
+import { DataAdapter, Platform, requestUrl } from "obsidian";
 import * as git from "isomorphic-git";
 import { ObsidianGitFs, validateRepositoryPath } from "./repository";
 
@@ -98,46 +98,72 @@ export async function fetchRepository(options: RemoteRepositoryOptions): Promise
 }
 
 export async function pullRepository(options: RemoteRepositoryOptions): Promise<RemoteOperationResult> {
-	const { fs, dir, url, branch } = await prepareRemote(options);
 	if (!options.author?.name || !options.author.email) {
 		throw new Error("Set your commit name and email before pulling.");
 	}
+	const fetched = await fetchBranch(options, "Pull");
+	const { fs, dir, branch, fetchHead } = fetched;
+	if (!fetchHead) throw new Error(`Remote branch origin/${branch} has no commits.`);
 	const previousLocalHead = await resolveOptionalRef(fs, dir, branch);
-	phase(options, `Contacting origin/${branch}…`);
-	diagnostic(options, `Pull: requesting origin/${branch} from ${url}.`);
-	await git.pull({
+	phase(options, "Updating local branch…");
+	await git.merge({
 		fs,
-		http: obsidianHttp,
 		dir,
-		remote: "origin",
-		url,
-		ref: branch,
-		singleBranch: true,
+		ours: branch,
+		theirs: fetchHead,
 		fastForwardOnly: true,
 		author: options.author,
 		committer: options.author,
-		onAuth: authCallback(options.credential),
-		onProgress: options.onProgress,
-		onMessage: options.onMessage,
 	});
-	phase(options, "Updating local branch…");
+	const skippedPaths = await checkoutBranch(options, fetched, false);
 	diagnostic(options, `Pull: completed fast-forward check for ${branch}.`);
 	const currentLocalHead = await resolveOptionalRef(fs, dir, branch);
 	const updated = currentLocalHead && currentLocalHead !== previousLocalHead;
+	const details = updated && previousLocalHead
+		? [`Local ${branch}: ${shortOid(previousLocalHead)}..${shortOid(currentLocalHead)}`]
+		: [`Local ${branch}: ${shortOid(currentLocalHead)}`];
+	details.push(...unsupportedPathDetails(skippedPaths));
 	return {
 		summary: updated
-			? `Fast-forwarded ${branch} to ${shortOid(currentLocalHead)}.`
-			: "Already up to date.",
-		details: updated && previousLocalHead
-			? [`Local ${branch}: ${shortOid(previousLocalHead)}..${shortOid(currentLocalHead)}`]
-			: [`Local ${branch}: ${shortOid(currentLocalHead)}`],
+			? `Fast-forwarded ${branch} to ${shortOid(currentLocalHead)}${skippedPaths.length ? ` (${skippedPaths.length} unsupported path${skippedPaths.length === 1 ? "" : "s"} skipped).` : "."}`
+			: `Already up to date.${skippedPaths.length ? ` ${skippedPaths.length} unsupported path${skippedPaths.length === 1 ? "" : "s"} skipped.` : ""}`,
+		details,
 	};
 }
 
 export async function forcePullRepository(options: RemoteRepositoryOptions): Promise<RemoteOperationResult> {
+	const fetched = await fetchBranch(options, "Force pull");
+	const { fs, dir, url, branch } = fetched;
+	const remoteHead = fetched.fetchHead ?? await resolveOptionalRef(fs, dir, `refs/remotes/origin/${branch}`);
+	if (!remoteHead) throw new Error(`Remote branch origin/${branch} has no commits.`);
+
+	phase(options, "Discarding local changes and updating branch…");
+	await git.writeRef({ fs, dir, ref: `refs/heads/${branch}`, value: remoteHead, force: true });
+	const skippedPaths = await checkoutBranch(options, fetched, true);
+	diagnostic(options, `Force pull: reset ${branch} to ${shortOid(remoteHead)}.`);
+
+	return {
+		summary: `Reset ${branch} to origin/${branch} at ${shortOid(remoteHead)}${skippedPaths.length ? ` (${skippedPaths.length} unsupported path${skippedPaths.length === 1 ? "" : "s"} skipped).` : "."}`,
+		details: [
+			`From ${redactRemoteText(url)}`,
+			`Local ${branch} -> ${shortOid(remoteHead)}`,
+			...unsupportedPathDetails(skippedPaths),
+		],
+	};
+}
+
+interface FetchedBranch {
+	fs: ObsidianGitFs;
+	dir: string;
+	url: string;
+	branch: string;
+	fetchHead: string | null;
+}
+
+async function fetchBranch(options: RemoteRepositoryOptions, operation: string): Promise<FetchedBranch> {
 	const { fs, dir, url, branch } = await prepareRemote(options);
 	phase(options, `Contacting origin/${branch}…`);
-	diagnostic(options, `Force pull: requesting origin/${branch} from ${url}.`);
+	diagnostic(options, `${operation}: requesting origin/${branch} from ${url}.`);
 	const result = await git.fetch({
 		fs,
 		http: obsidianHttp,
@@ -150,21 +176,42 @@ export async function forcePullRepository(options: RemoteRepositoryOptions): Pro
 		onProgress: options.onProgress,
 		onMessage: options.onMessage,
 	});
-	const remoteHead = result.fetchHead ?? await resolveOptionalRef(fs, dir, `refs/remotes/origin/${branch}`);
-	if (!remoteHead) throw new Error(`Remote branch origin/${branch} has no commits.`);
+	diagnostic(options, `${operation}: received ${result.fetchHead ? result.fetchHead.slice(0, 7) : "no commit"}.`);
+	return { fs, dir, url, branch, fetchHead: result.fetchHead ?? null };
+}
 
-	phase(options, "Discarding local changes and updating branch…");
-	await git.writeRef({ fs, dir, ref: `refs/heads/${branch}`, value: remoteHead, force: true });
-	await git.checkout({ fs, dir, ref: branch, force: true });
-	diagnostic(options, `Force pull: reset ${branch} to ${shortOid(remoteHead)}.`);
+async function checkoutBranch(
+	options: RemoteRepositoryOptions,
+	fetched: FetchedBranch,
+	force: boolean,
+): Promise<string[]> {
+	const remoteFiles = await git.listFiles({ fs: fetched.fs, dir: fetched.dir, ref: fetched.branch });
+	const indexFiles = await git.listFiles({ fs: fetched.fs, dir: fetched.dir });
+	const skippedPaths = Platform.isMobile ? remoteFiles.filter((path) => !isMobileCompatiblePath(path)) : [];
+	const checkoutPaths = [...new Set([...remoteFiles, ...indexFiles])]
+		.filter((path) => !Platform.isMobile || isMobileCompatiblePath(path));
+	await git.checkout({
+		fs: fetched.fs,
+		dir: fetched.dir,
+		ref: fetched.branch,
+		force,
+		filepaths: checkoutPaths,
+	});
+	if (skippedPaths.length > 0) {
+		diagnostic(options, `Skipped ${skippedPaths.length} mobile-incompatible path${skippedPaths.length === 1 ? "" : "s"}: ${skippedPaths.join(", ")}.`);
+	}
+	return skippedPaths;
+}
 
-	return {
-		summary: `Reset ${branch} to origin/${branch} at ${shortOid(remoteHead)}.`,
-		details: [
-			`From ${redactRemoteText(url)}`,
-			`Local ${branch} -> ${shortOid(remoteHead)}`,
-		],
-	};
+function isMobileCompatiblePath(path: string): boolean {
+	return path.split("/").every((segment) => segment.length > 0 && !/[?"<>:*|\\]/.test(segment));
+}
+
+function unsupportedPathDetails(paths: string[]): string[] {
+	if (paths.length === 0) return [];
+	const visiblePaths = paths.slice(0, 10);
+	const suffix = paths.length > visiblePaths.length ? ` (+${paths.length - visiblePaths.length} more)` : "";
+	return [`Skipped mobile-incompatible paths: ${visiblePaths.join(", ")}${suffix}`];
 }
 
 export async function pushRepository(options: RemoteRepositoryOptions): Promise<RemoteOperationResult> {

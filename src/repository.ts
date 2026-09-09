@@ -307,16 +307,28 @@ export class ObsidianGitFs {
 			}
 		},
 		writeFile: async (path: string, data: Uint8Array | string): Promise<void> => {
-			if (typeof data === "string") {
-				await this.adapter.write(this.normalized(path), data);
-				return;
+			const normalizedPath = this.normalized(path);
+			try {
+				if (typeof data === "string") {
+					await this.adapter.write(normalizedPath, data);
+					return;
+				}
+				await this.adapter.writeBinary(
+					normalizedPath,
+					data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer,
+				);
+			} catch (error) {
+				throw this.adapterOperationError("write", normalizedPath, error);
 			}
-			await this.adapter.writeBinary(
-				this.normalized(path),
-				data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer,
-			);
 		},
-		unlink: async (path: string): Promise<void> => this.adapter.remove(this.normalized(path)),
+		unlink: async (path: string): Promise<void> => {
+			const normalizedPath = this.normalized(path);
+			try {
+				await this.adapter.remove(normalizedPath);
+			} catch (error) {
+				throw this.adapterOperationError("remove", normalizedPath, error);
+			}
+		},
 		readdir: async (path: string): Promise<string[]> => {
 			try {
 				const listed = await this.adapter.list(this.normalized(path));
@@ -353,8 +365,22 @@ export class ObsidianGitFs {
 				throw this.fileSystemError(path, error);
 			}
 		},
-		mkdir: async (path: string): Promise<void> => this.adapter.mkdir(this.normalized(path)),
-		rmdir: async (path: string): Promise<void> => this.adapter.rmdir(this.normalized(path), false),
+		mkdir: async (path: string): Promise<void> => {
+			const normalizedPath = this.normalized(path);
+			try {
+				await this.adapter.mkdir(normalizedPath);
+			} catch (error) {
+				throw this.adapterOperationError("create folder", normalizedPath, error);
+			}
+		},
+		rmdir: async (path: string): Promise<void> => {
+			const normalizedPath = this.normalized(path);
+			try {
+				await this.adapter.rmdir(normalizedPath, false);
+			} catch (error) {
+				throw this.adapterOperationError("remove folder", normalizedPath, error);
+			}
+		},
 		stat: async (path: string): Promise<git.Stat> => this.stat(path),
 		lstat: async (path: string): Promise<git.Stat> => this.stat(path),
 		readlink: async (path: string): Promise<string> => {
@@ -417,6 +443,20 @@ export class ObsidianGitFs {
 	private unsupportedLinkError(path: string): Error & { code: string } {
 		const error = new Error(`EINVAL: symbolic links are not supported for '${path}'`) as Error & { code: string };
 		error.code = "EINVAL";
+		return error;
+	}
+
+	private adapterOperationError(operation: string, path: string, cause: unknown): Error & { code?: string } {
+		const record = cause && typeof cause === "object" ? cause as Record<string, unknown> : null;
+		const code = record && typeof record.code === "string" ? record.code : "";
+		const message = cause instanceof Error
+			? cause.message
+			: record && typeof record.message === "string"
+				? record.message
+				: String(cause ?? "adapter error");
+		const detail = message || code || "adapter error";
+		const error = new Error(`${operation} '${path}' failed: ${detail}`) as Error & { code?: string };
+		if (code) error.code = code;
 		return error;
 	}
 }

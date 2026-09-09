@@ -154,7 +154,6 @@ export async function forcePullRepository(options: RemoteRepositoryOptions): Pro
 	if (!remoteHead) throw new Error(`Remote branch origin/${branch} has no commits.`);
 
 	phase(options, "Discarding local changes and updating branch…");
-	await git.checkout({ fs, dir, ref: branch, force: true });
 	await git.writeRef({ fs, dir, ref: `refs/heads/${branch}`, value: remoteHead, force: true });
 	await git.checkout({ fs, dir, ref: branch, force: true });
 	diagnostic(options, `Force pull: reset ${branch} to ${shortOid(remoteHead)}.`);

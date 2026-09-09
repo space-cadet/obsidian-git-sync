@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-09-10
+
+- Promoted the from-scratch rewrite to `main` and preserved the former main
+  line as `main-before-kiss-restart`; removed the redundant delivery branch. - T10
+- Published main development builds through Browse Builds. - T9
+- Added confirmed Force Pull and Force Push actions with distinct muted-red
+  icon controls. - T7, T8
+- Added recursive nested Git error details and exact DataAdapter failure paths.
+  - T7, T8
+- Skipped and reported mobile-incompatible checkout paths so Pull and Force
+  Pull can complete on mobile; user verification confirmed the behavior. - T7, T10
+
 ## 2026-09-07
 
 - Added the latency investigation and tuning record with commit-level evidence,

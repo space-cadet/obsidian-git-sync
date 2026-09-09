@@ -31,15 +31,20 @@ Each component owns its small state, operations, UI, and focused checks.
 - T6: local and fetched remote commit history, lazy details, independent
   pagination, changed-file display, and comparison status are complete.
 - T7: remote connection testing, SecretStorage-backed credentials, Fetch,
-  fast-forward-only Pull, Push, and Clone are implemented and user-verified;
--  progress and Git-style result feedback are implemented; edge-case handling
-  remains planned.
-- T8: progress, retained completion/failure modals, remote result details, and
-  mobile output/Changes refresh polish are implemented; cancellation and
-  confirmation remain planned.
-- T9: updater and rolling branch-release ordering are implemented; real-host installation remains pending.
+  fast-forward-only Pull, Push, Clone, Force Pull, and Force Push are
+  implemented and user-verified; mobile checkout filtering and edge-case
+  handling remain bounded follow-ups.
+- T8: progress, retained completion/failure modals, remote result details,
+  nested error diagnostics, and mobile output/Changes refresh polish are
+  implemented; cancellation remains deferred until a real abort path exists.
+- T9: updater, rolling branch-release ordering, and main development-build
+  publication are implemented; real-host installation remains pending.
 - T10: local, GitHub, and user-installed pushed-build evidence exists; platform-
   specific desktop, Android, and iOS acceptance remains to be recorded.
+
+The from-scratch rewrite is the current `main` line at `f67860e`. The prior
+main line is preserved as `main-before-kiss-restart`; the old rewrite branch is
+no longer needed as a separate delivery branch.
 
 Latency evidence and the manual full-refresh policy are recorded in
 `implementation-details/latency-benchmarking.md`; controlled large-vault

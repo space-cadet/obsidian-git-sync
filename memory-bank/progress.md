@@ -44,6 +44,22 @@
 - Final production build and `git diff --check` passed; branch parity is
   `574633a` locally and on `origin/codex/kiss-restart`.
 
+## 2026-09-10
+
+- Promoted the from-scratch rewrite to `main` and preserved the former main
+  line as `main-before-kiss-restart`; the redundant `codex/kiss-restart` branch
+  was removed after the rewrite became the main line.
+- Corrected the development-build workflow so pushes to `main` publish a
+  rolling `latest-dev-main` build; the correction was pushed in `97210c3`.
+- Added confirmed Force Pull and Force Push actions beside the normal remote
+  actions, with distinct icons, muted-red styling, and confirmation modals.
+- Improved nested remote error reporting and adapter path diagnostics after
+  mobile exposed `MultipleGitError` and `FILE_NOTCREATED` failures.
+- Changed Pull and Force Pull checkout to skip mobile-incompatible filenames
+  while reporting each skipped path. The user confirmed mobile Force Pull
+  completed at `f0201a9`; desktop Force Push also reached the remote.
+- Current local and remote main parity is `f67860e`.
+
 ## Next
 
 - Implement cancellation only if the HTTP bridge supports a real abort path.

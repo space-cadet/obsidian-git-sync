@@ -1,5 +1,7 @@
 # T9: Updater and Release
 
+*Last Updated: 2026-09-10 04:05:00 IST*
+
 ## Purpose
 
 Provide a safe, understandable way to discover and install plugin updates.
@@ -24,6 +26,11 @@ Rolling branch releases are updated in place. Browse Builds therefore sorts by
 GitHub `updated_at` and displays that value; `published_at` can remain the
 original release publication time and must not be treated as the current build
 time. This correction was pushed in `2a8dead`.
+
+The development-build workflow also runs for pushes to `main`, not only for
+non-main branches. This makes the promoted rewrite discoverable in Browse
+Builds through the rolling `latest-dev-main` release. The workflow correction
+was published in `97210c3`.
 
 ## KISS boundary
 

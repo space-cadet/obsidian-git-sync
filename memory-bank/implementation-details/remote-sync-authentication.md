@@ -1,6 +1,6 @@
 # T7: Remote Sync and Authentication
 
-*Last Updated: 2026-09-07 05:29:49 IST*
+*Last Updated: 2026-09-10 04:05:00 IST*
 
 ## Purpose
 
@@ -52,10 +52,26 @@ recorded.
 - Pull and Clone refresh repository metadata and explicitly mark Changes as
   needing refresh instead of blocking completion on a full vault scan.
 
+## Force synchronization
+
+- Force Pull fetches the configured branch, writes the remote head to the local
+  branch ref, and checks out the remote tree after explicit user confirmation.
+- Force Push uses the existing authenticated transport with `force: true` and
+  is also guarded by an explicit confirmation modal.
+- Normal Pull now follows explicit `fetch -> fast-forward-only merge ->
+  checkout` steps. This keeps the existing no-conflict policy while allowing
+  checkout filtering on mobile.
+- On mobile only, checkout skips paths containing characters that the mobile
+  filesystem cannot create (`?`, `"`, `<`, `>`, `:`, `*`, `|`, and `\\`). The
+  result and Activity diagnostics list skipped paths. Desktop checkout does not
+  apply this filter.
+
 ## Completion evidence
 
 The source implementation supports authentication, clone or connect, pull,
-fetch, and push through the configured HTTP(S) remote. Production build and
-static diff checks pass. The user verified the pushed remote workflow, including
-Pull and Push from the Changes toolbar. Progress modals and Git-style result
-messages are implemented; additional edge-case acceptance remains planned.
+fetch, push, Force Pull, and Force Push through the configured HTTP(S) remote.
+Production build and static diff checks pass. The user verified the pushed
+remote workflow, including Pull and Push from the Changes toolbar, desktop Force
+Push, and mobile Force Pull completion with a reported skipped path. Progress
+modals and Git-style result messages are implemented; additional edge-case
+acceptance remains planned.

@@ -1,6 +1,6 @@
 # T5: Activity and Logging
 
-*Last Updated: 2026-09-07 05:29:49 IST*
+*Last Updated: 2026-09-10 04:05:00 IST*
 
 ## Purpose
 
@@ -42,3 +42,8 @@ The user verified the pushed build and confirmed that Log entries persist and
 render correctly, including remote-operation diagnostics and Git-style result
 details. Clear and a dedicated Log export action remain outside the current
 scope.
+
+Remote failures now preserve nested Git details instead of only the outer
+`MultipleGitError` label. The diagnostic output includes the underlying code,
+caller, and exact filesystem path when available, which made the mobile
+`FILE_NOTCREATED` failure actionable.

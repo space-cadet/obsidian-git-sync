@@ -1,5 +1,17 @@
 # Error Log
 
+## 2026-09-10
+
+- **Deleted-file staging**: `isomorphic-git` `git.add` reports a missing file
+  when an already-deleted tracked path is staged through the individual Changes
+  flow. The isolated `git.remove` path stages the deletion, but the product
+  flow remains unfixed and is recorded as follow-up work.
+- **Mobile checkout filename**: Force Pull initially failed with nested
+  `MultipleGitError` / `FILE_NOTCREATED` for a note whose name contains `?`.
+  Error formatting now exposes the nested path and code, and mobile checkout
+  skips/report that path so the operation can complete. The user confirmed the
+  successful Force Pull result.
+
 ## 2026-09-07
 
 - **Stale mobile adapter paths**: Obsidian's index could list a path that had

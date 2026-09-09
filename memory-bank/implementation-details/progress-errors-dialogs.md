@@ -1,6 +1,6 @@
 # T8: Progress, Errors, and Dialogs
 
-*Last Updated: 2026-09-07 05:29:49 IST*
+*Last Updated: 2026-09-10 04:05:00 IST*
 
 ## Purpose
 
@@ -54,6 +54,15 @@ what to do after a failure.
 - Destructive `git rm` actions use a confirmation modal. Cancellation remains
   intentionally absent until the HTTP bridge and Git operation expose a tested
   abort path.
+- Remote confirmation modals distinguish the destructive operations as “Reset
+  to Remote” for Force Pull and “Force Push” for Force Push.
+- Error formatting recursively walks nested `errors` arrays, preserving the
+  useful Git code, caller, and underlying message instead of showing only a
+  generic `MultipleGitError`. DataAdapter write/remove/mkdir/rmdir failures
+  include the path that could not be handled.
+- A mobile Force Pull can finish successfully while reporting skipped paths
+  that contain unsupported filename characters; the final result keeps that
+  warning visible.
 
 ## Git CLI behavior to reproduce
 

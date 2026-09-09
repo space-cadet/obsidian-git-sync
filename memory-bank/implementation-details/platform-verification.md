@@ -1,6 +1,6 @@
 # T10: Platform Integration and Verification
 
-*Last Updated: 2026-09-07 05:29:49 IST*
+*Last Updated: 2026-09-10 04:05:00 IST*
 
 ## Purpose
 
@@ -46,3 +46,17 @@ verified the Log and Changes behavior.
   local HEAD and `origin/codex/kiss-restart` both resolve to `574633a`.
 - Latency evidence remains diagnostic: controlled cold/warm measurements in the
   large `typora-notes` vault and explicit host identity records are still open.
+
+- The from-scratch rewrite is now the `main` branch. The previous main history
+  is preserved as `main-before-kiss-restart`; redundant rewrite branches remain
+  only as historical references.
+- The main development-build workflow correction is in `97210c3`, and the
+  current source/build parity is `f67860e` on local `main` and `origin/main`.
+- The user confirmed the force-sync button icons and muted-red colors render on
+  desktop and mobile. Desktop Force Push reached the remote successfully.
+- The user confirmed mobile Force Pull completed after the compatibility fix;
+  it reset local `main` to `f0201a9` and reported one skipped note whose `?`
+  filename cannot be created on that mobile filesystem.
+- These are user-reported installed-host checks for the tested actions; they do
+  not close the separate Android/iOS identity, install/reload, or large-vault
+  acceptance gates.

@@ -1,6 +1,6 @@
 # T4: Changes Panel
 
-*Last Updated: 2026-09-07 05:29:49 IST*
+*Last Updated: 2026-09-10 04:05:00 IST*
 
 ## Purpose
 
@@ -47,6 +47,9 @@ the resulting clean state.
   place and restore scroll after layout.
 - Pull and Push are connected to the shared remote operation queue and emit
   Activity diagnostics while they run; Settings remains configuration-only.
+- Force Pull and Force Push sit beside the normal Pull and Push actions. They
+  use explicit confirmation, icon-only buttons, known-rendering arrow icons,
+  and a muted red destructive color that remains visible without hover.
 - Full vault-wide Changes scans are authoritative but manual: they run on
   initial/context refreshes or explicit Refresh. Successful known mutations
   reconcile local state, while uncertain states show “Changes need refreshing”.
@@ -60,3 +63,9 @@ The user verified the pushed Changes build, including staging behavior, working
 Pull and Push toolbar actions, scroll preservation, and the in-place refresh
 correction. Revert remains a planned refinement; selection, filtering, sorting,
 overflow actions, and targeted reconciliation are implemented.
+
+The initial deleted-file staging report was reproduced against
+`isomorphic-git` 1.41.9: `git.add` reports a missing path when the worktree file
+has already been deleted, while `git.remove` stages the deletion. The Changes
+individual staging flow still needs to route this case through deletion-aware
+handling.

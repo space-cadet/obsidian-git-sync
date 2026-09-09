@@ -1610,7 +1610,7 @@ class GitSyncView extends ItemView {
 			cls: "git-sync-bottom-action is-destructive",
 			attr: { type: "button", "aria-label": "Reset local branch to remote", title: "Reset local branch to remote" },
 		});
-		setIcon(forcePull, "download");
+		setIcon(forcePull, "arrow-down-to-line");
 		forcePull.addEventListener("click", () => this.plugin.forcePullRemote());
 
 		const push = bar.createEl("button", {
@@ -1624,7 +1624,7 @@ class GitSyncView extends ItemView {
 			cls: "git-sync-bottom-action is-destructive",
 			attr: { type: "button", "aria-label": "Force push to remote", title: "Force push to remote" },
 		});
-		setIcon(forcePush, "upload");
+		setIcon(forcePush, "arrow-up-to-line");
 		forcePush.addEventListener("click", () => this.plugin.forcePushRemote());
 
 		const refresh = bar.createEl("button", {

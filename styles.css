@@ -543,6 +543,16 @@
 	color: var(--text-on-accent);
 }
 
+.git-sync-bottom-action.is-destructive {
+	background: var(--background-modifier-error);
+	color: var(--text-error);
+}
+
+.git-sync-bottom-action.is-destructive:hover {
+	background: var(--text-error);
+	color: var(--text-on-accent);
+}
+
 .git-sync-settings-feedback {
 	margin-top: 8px;
 	color: var(--text-success);

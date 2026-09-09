@@ -32,6 +32,8 @@ import { AvailableBuildsModal, PluginUpdater, UpdateAvailableModal } from "./upd
 import {
 	cloneRepository,
 	fetchRepository,
+	forcePullRepository,
+	forcePushRepository,
 	pushRepository,
 	pullRepository,
 	REMOTE_TOKEN_SECRET_ID,
@@ -365,8 +367,28 @@ export default class GitSyncPlugin extends Plugin {
 		return this.runRemoteOperation("Pull", (modal) => pullRepository(this.remoteRepositoryOptions(modal)));
 	}
 
+	forcePullRemote(): void {
+		new ConfirmActionModal(
+			this.app,
+			"Reset local branch to remote?",
+			`This fetches origin/${this.settings.branchName} and discards local commits and tracked changes that are not on the remote branch.`,
+			() => void this.runRemoteOperation("Force Pull", (modal) => forcePullRepository(this.remoteRepositoryOptions(modal))),
+			"Reset to Remote",
+		).open();
+	}
+
 	async pushRemote(): Promise<void> {
 		return this.runRemoteOperation("Push", (modal) => pushRepository(this.remoteRepositoryOptions(modal)));
+	}
+
+	forcePushRemote(): void {
+		new ConfirmActionModal(
+			this.app,
+			"Force push to remote?",
+			`This overwrites origin/${this.settings.branchName} with the local branch and may discard commits currently on the remote.`,
+			() => void this.runRemoteOperation("Force Push", (modal) => forcePushRepository(this.remoteRepositoryOptions(modal))),
+			"Force Push",
+		).open();
 	}
 
 	async cloneRemote(): Promise<void> {
@@ -415,7 +437,7 @@ export default class GitSyncPlugin extends Plugin {
 					this.recordActivity(`${name} completed in ${formatMilliseconds(elapsedMilliseconds(startedAt))}.`, "METRIC");
 					this.recordActivity(`${name}: ${result.summary}`);
 					for (const detail of result.details) this.recordActivity(`${name}: ${detail}`, "DEBUG");
-					if (name === "Pull" || name === "Clone") {
+					if (name === "Pull" || name === "Force Pull" || name === "Clone") {
 						this.refreshViews(`${name.toLowerCase()}-metadata-refresh`, false);
 					} else {
 						this.refreshRemoteHistoryViews(`${name.toLowerCase()}-history-refresh`);
@@ -426,7 +448,7 @@ export default class GitSyncPlugin extends Plugin {
 					const detail = describeOperationError(error, `${name} failed.`);
 					this.recordActivity(`${name} failed: ${detail}`, "ERROR");
 					this.recordActivity(`${name} failed after ${formatMilliseconds(elapsedMilliseconds(startedAt))}.`, "METRIC");
-					if (name === "Pull" || name === "Clone") this.markChangesRefreshRequiredViews(name);
+					if (name === "Pull" || name === "Force Pull" || name === "Clone") this.markChangesRefreshRequiredViews(name);
 					modal.fail(detail);
 					new Notice(`${name} failed: ${detail}`);
 				}
@@ -1584,12 +1606,26 @@ class GitSyncView extends ItemView {
 		setIcon(pull, "arrow-down-to-line");
 		pull.addEventListener("click", () => void this.plugin.pullRemote());
 
+		const forcePull = bar.createEl("button", {
+			cls: "git-sync-bottom-action is-destructive",
+			attr: { type: "button", "aria-label": "Reset local branch to remote", title: "Reset local branch to remote" },
+		});
+		setIcon(forcePull, "download");
+		forcePull.addEventListener("click", () => this.plugin.forcePullRemote());
+
 		const push = bar.createEl("button", {
 			cls: "git-sync-bottom-action",
 			attr: { type: "button", "aria-label": "Push to remote", title: "Push to remote" },
 		});
 		setIcon(push, "arrow-up-to-line");
 		push.addEventListener("click", () => void this.plugin.pushRemote());
+
+		const forcePush = bar.createEl("button", {
+			cls: "git-sync-bottom-action is-destructive",
+			attr: { type: "button", "aria-label": "Force push to remote", title: "Force push to remote" },
+		});
+		setIcon(forcePush, "upload");
+		forcePush.addEventListener("click", () => this.plugin.forcePushRemote());
 
 		const refresh = bar.createEl("button", {
 			cls: "git-sync-bottom-action",
@@ -1974,6 +2010,7 @@ class ConfirmActionModal extends Modal {
 		private readonly title: string,
 		private readonly description: string,
 		private readonly onConfirm: () => void,
+		private readonly confirmLabel = "Delete",
 	) {
 		super(app);
 	}
@@ -1985,7 +2022,7 @@ class ConfirmActionModal extends Modal {
 		const actions = this.contentEl.createDiv({ cls: "git-sync-confirm-actions" });
 		const cancel = actions.createEl("button", { text: "Cancel", attr: { type: "button" } });
 		cancel.addEventListener("click", () => this.close());
-		const confirm = actions.createEl("button", { text: "Delete", cls: "mod-warning", attr: { type: "button" } });
+		const confirm = actions.createEl("button", { text: this.confirmLabel, cls: "mod-warning", attr: { type: "button" } });
 		confirm.addEventListener("click", () => {
 			this.close();
 			this.onConfirm();

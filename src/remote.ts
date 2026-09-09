@@ -134,11 +134,56 @@ export async function pullRepository(options: RemoteRepositoryOptions): Promise<
 	};
 }
 
+export async function forcePullRepository(options: RemoteRepositoryOptions): Promise<RemoteOperationResult> {
+	const { fs, dir, url, branch } = await prepareRemote(options);
+	phase(options, `Contacting origin/${branch}…`);
+	diagnostic(options, `Force pull: requesting origin/${branch} from ${url}.`);
+	const result = await git.fetch({
+		fs,
+		http: obsidianHttp,
+		dir,
+		remote: "origin",
+		url,
+		ref: branch,
+		singleBranch: true,
+		onAuth: authCallback(options.credential),
+		onProgress: options.onProgress,
+		onMessage: options.onMessage,
+	});
+	const remoteHead = result.fetchHead ?? await resolveOptionalRef(fs, dir, `refs/remotes/origin/${branch}`);
+	if (!remoteHead) throw new Error(`Remote branch origin/${branch} has no commits.`);
+
+	phase(options, "Discarding local changes and updating branch…");
+	await git.checkout({ fs, dir, ref: branch, force: true });
+	await git.writeRef({ fs, dir, ref: `refs/heads/${branch}`, value: remoteHead, force: true });
+	await git.checkout({ fs, dir, ref: branch, force: true });
+	diagnostic(options, `Force pull: reset ${branch} to ${shortOid(remoteHead)}.`);
+
+	return {
+		summary: `Reset ${branch} to origin/${branch} at ${shortOid(remoteHead)}.`,
+		details: [
+			`From ${redactRemoteText(url)}`,
+			`Local ${branch} -> ${shortOid(remoteHead)}`,
+		],
+	};
+}
+
 export async function pushRepository(options: RemoteRepositoryOptions): Promise<RemoteOperationResult> {
+	return pushRepositoryWithMode(options, false);
+}
+
+export async function forcePushRepository(options: RemoteRepositoryOptions): Promise<RemoteOperationResult> {
+	return pushRepositoryWithMode(options, true);
+}
+
+async function pushRepositoryWithMode(
+	options: RemoteRepositoryOptions,
+	force: boolean,
+): Promise<RemoteOperationResult> {
 	const { fs, dir, url, branch } = await prepareRemote(options);
 	const pushPlan: PushPlan = { localOid: "", remoteOid: "" };
 	phase(options, "Preparing local pack and contacting remote…");
-	diagnostic(options, `Push: sending ${branch} to ${url}.`);
+	diagnostic(options, `${force ? "Force push" : "Push"}: sending ${branch} to ${url}.`);
 	const result = await git.push({
 		fs,
 		http: obsidianHttp,
@@ -147,6 +192,7 @@ export async function pushRepository(options: RemoteRepositoryOptions): Promise<
 		url,
 		ref: branch,
 		remoteRef: branch,
+		force,
 		onAuth: authCallback(options.credential),
 		onProgress: options.onProgress,
 		onMessage: options.onMessage,
@@ -170,7 +216,9 @@ export async function pushRepository(options: RemoteRepositoryOptions): Promise<
 	}
 
 	return {
-		summary: pushPlan.localOid && pushPlan.localOid === pushPlan.remoteOid ? "Everything up-to-date." : `Pushed ${branch} to origin.`,
+		summary: pushPlan.localOid && pushPlan.localOid === pushPlan.remoteOid
+			? "Everything up-to-date."
+			: `${force ? "Force-pushed" : "Pushed"} ${branch} to origin.`,
 		details,
 	};
 }
